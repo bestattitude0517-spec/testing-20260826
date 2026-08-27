@@ -159,7 +159,10 @@ volume = "a book forming part of a work or series"</textarea>
     <div class="modal-title">⚠️ Let's Practice Memory!</div>
     <p>That wasn't quite right. Write it correctly <b id="attemptsNeededDisplay">3 times</b> in a row from memory to continue!</p>
     
-    <button class="speak-btn" style="width: 55px; height: 55px; font-size: 1.6rem; margin: 10px auto;" onclick="speakCurrentWord()">🔊</button>
+    <button class="speak-btn" style="width: 55px; height: 55px; font-size: 1.6rem; margin: 5px auto;" onclick="speakCurrentWord()">🔊</button>
+
+    <!-- Clue Displayed Only on 1st Practice Try -->
+    <div class="masked-word" id="modalMaskedWord" style="font-size: 1.8rem; margin: 10px 0;">a _ _ l e</div>
 
     <div class="badge" id="repeatCounter">Success: 0 / 3</div>
     <br><br>
@@ -375,7 +378,8 @@ volume = "a book forming part of a work or series"</textarea>
   }
 
   function updateMaskedDisplay() {
-    document.getElementById('maskedWord').innerText = getMaskedString(currentWord, revealedIndices);
+    const maskedStr = getMaskedString(currentWord, revealedIndices);
+    document.getElementById('maskedWord').innerText = maskedStr;
   }
 
   function startCurrentWord() {
@@ -487,7 +491,9 @@ volume = "a book forming part of a work or series"</textarea>
   }
 
   function showSentencePhase() {
-    document.getElementById('maskedWord').innerText = `🎉 Correct: ${currentWord.toUpperCase()}!`;
+    const correctMsg = `🎉 Correct: ${currentWord.toUpperCase()}!`;
+    document.getElementById('maskedWord').innerText = correctMsg;
+
     document.getElementById('userInput').disabled = true;
     document.getElementById('submitBtn').disabled = true;
     document.getElementById('sentencePhase').style.display = 'block';
@@ -510,7 +516,7 @@ volume = "a book forming part of a work or series"</textarea>
         batchLogs.push({ word: currentWord, status: 'wrong' });
         isFirstAttempt = false;
 
-        // Reveal one third of the vocabulary letters in random positions
+        // Reveal 1/3 of the vocabulary letters in random positions
         let totalCountToReveal = Math.max(1, Math.round(currentWord.length / 3));
         let availableIndices = [];
         for (let i = 0; i < currentWord.length; i++) {
@@ -536,6 +542,11 @@ volume = "a book forming part of a work or series"</textarea>
       practiceCount = 0;
       document.getElementById('repeatCounter').innerText = `Success: 0 / 3`;
       document.getElementById('practiceInput').value = "";
+      
+      // Display the clue ONLY on the 1st practice try
+      document.getElementById('modalMaskedWord').innerText = getMaskedString(currentWord, revealedIndices);
+      document.getElementById('modalMaskedWord').style.display = 'block';
+
       document.getElementById('practiceModal').classList.add('active');
       focusPracticeInput();
     }
@@ -549,6 +560,10 @@ volume = "a book forming part of a work or series"</textarea>
       practiceCount++;
       document.getElementById('repeatCounter').innerText = `Success: ${practiceCount} / 3`;
       document.getElementById('practiceInput').value = "";
+      
+      // Remove clue after the 1st successful try (hide for 2nd and 3rd try)
+      document.getElementById('modalMaskedWord').style.display = 'none';
+
       if (practiceCount >= 3) {
         document.getElementById('practiceModal').classList.remove('active');
         document.getElementById('userInput').value = currentWord;
@@ -561,6 +576,9 @@ volume = "a book forming part of a work or series"</textarea>
       practiceCount = 0;
       document.getElementById('repeatCounter').innerText = `Success: 0 / 3`;
       document.getElementById('practiceInput').value = "";
+      
+      // Show the clue again if failed/reset
+      document.getElementById('modalMaskedWord').style.display = 'block';
       focusPracticeInput();
     }
   }
