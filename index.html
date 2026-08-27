@@ -31,7 +31,7 @@
     .btn-warning { background: var(--warning); }
     .btn-danger { background: var(--accent); }
 
-    textarea { width: 100%; height: 220px; border: 2px solid #CBD5E1; border-radius: 8px; padding: 12px; font-size: 1rem; margin-top: 10px; line-height: 1.5; resize: vertical; }
+    textarea { width: 100%; height: 240px; border: 2px solid #CBD5E1; border-radius: 8px; padding: 12px; font-size: 0.95rem; margin-top: 10px; line-height: 1.5; resize: vertical; font-family: monospace; }
 
     .game-card { text-align: center; padding: 20px; background: #F8FAFC; border-radius: 12px; border: 2px solid #E2E8F0; }
     .progress-bar { font-size: 1rem; font-weight: bold; color: var(--primary); margin-bottom: 10px; }
@@ -40,14 +40,12 @@
     .masked-word { font-size: 2.2rem; letter-spacing: 6px; font-weight: bold; color: var(--primary); margin: 15px 0; }
     input[type="text"] { font-size: 1.3rem; padding: 10px; border: 2px solid #CBD5E1; border-radius: 8px; text-align: center; width: 100%; margin-bottom: 10px; }
 
-    /* Batch Selection List Styles */
     .batch-list { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
     .batch-item-btn { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: #FFFFFF; border: 2px solid #E2E8F0; border-radius: 10px; font-size: 1.05rem; font-weight: bold; cursor: pointer; transition: 0.2s; text-align: left; }
     .batch-item-btn:hover { border-color: var(--primary); background: #EFF6FF; }
     .batch-range { color: var(--primary); font-family: monospace; font-size: 1.1rem; }
     .batch-preview { color: #64748B; font-weight: normal; }
 
-    /* Definition Display Box */
     .definition-box { background: #EFF6FF; border-left: 4px solid var(--primary); padding: 12px 15px; border-radius: 6px; margin: 15px 0; text-align: left; font-size: 0.95rem; line-height: 1.4; color: #1E293B; }
     .def-link { color: var(--primary); font-weight: bold; text-decoration: underline; cursor: pointer; }
 
@@ -81,23 +79,21 @@
   <div id="inputTab" class="section active">
     <h2>Enter Vocabulary & Definitions</h2>
     <p style="color: #64748B; margin-bottom: 5px; font-size:0.95rem;">
-      Paste words with definitions using <code>-</code> or <code>:</code> (e.g. <i>apple - a fruit</i>):
+      Format: <code>word = "definition"</code> per line (one volume):
     </p>
     
-    <textarea id="wordInput" oninput="saveWordListToStorage()" placeholder="Paste photo OCR text or type here...&#10;&#10;yesterday - the day before today&#10;apple : a round fruit that grows on trees&#10;elephant - a very large mammal with a trunk&#10;guitar"></textarea>
+    <textarea id="wordInput" oninput="saveWordListToStorage()" placeholder='apple = "a round fruit growing on trees"&#10;yesterday = "the day before today"&#10;elephant = "a large gray mammal with a trunk"&#10;guitar = "a stringed musical instrument"'></textarea>
     <button class="btn btn-secondary" onclick="goToBatchMenu()">🚀 View Game Batches</button>
   </div>
 
   <!-- SECTION 2: SPELLING & SENTENCE GAME -->
   <div id="gameTab" class="section">
-    <!-- VIEW A: BATCH SELECTION MENU -->
     <div id="batchSelectionView">
       <h2>Select a Game Batch</h2>
       <p style="text-align:center; color:#64748B;">Choose a 10-word batch to start practicing:</p>
       <div id="batchListContainer" class="batch-list"></div>
     </div>
 
-    <!-- VIEW B: ACTIVE GAME CARD -->
     <div id="activeGameView" style="display: none;">
       <div style="text-align: left; margin-bottom: 10px;">
         <button class="btn btn-secondary" style="width: auto; padding: 6px 14px; font-size: 0.9rem;" onclick="showBatchSelectionView()">⬅️ Back to Batch List</button>
@@ -114,10 +110,7 @@
         <br>
         <button class="btn" id="submitBtn" onclick="submitSpelling()">Submit Answer</button>
 
-        <!-- Sentence & Definition Section -->
         <div id="sentencePhase" style="display: none; margin-top: 25px; border-top: 2px dashed #CBD5E1; padding-top: 15px;">
-          
-          <!-- Live Definition Box -->
           <div id="wordDefinition" class="definition-box">🔍 Fetching definition...</div>
 
           <h4 style="color: var(--primary); margin-bottom: 5px;">🌟 Sentence Challenge</h4>
@@ -171,7 +164,7 @@
 </div>
 
 <script>
-  let activeWords = []; // Objects: { word: string, definition: string }
+  let activeWords = []; 
   let currentBatch = [];
   let batchOffset = 0;
   let currentIndex = 0;
@@ -226,9 +219,7 @@
   function focusSentenceInput() {
     setTimeout(() => {
       const input = document.getElementById('sentenceInput');
-      if (input) {
-        input.focus();
-      }
+      if (input) input.focus();
     }, 150);
   }
 
@@ -248,9 +239,7 @@
     document.getElementById(tabId).classList.add('active');
     if(evt) evt.target.classList.add('active');
     
-    if(tabId === 'gameTab') {
-      renderBatchList();
-    }
+    if(tabId === 'gameTab') renderBatchList();
     if(tabId === 'reviewTab') renderReviewList();
     if(tabId === 'historyTab') renderHistoryLogs();
   }
@@ -262,7 +251,7 @@
     if(tabId === 'gameTab') renderBatchList();
   }
 
-  // PARSER: Supports word-only, word - definition, word : definition, word = definition
+  // PARSER: Correctly handles word = "definition", word = definition, word : definition, word - definition
   function parseWordList() {
     const raw = document.getElementById('wordInput').value;
     const lines = raw.split(/\r?\n/);
@@ -272,25 +261,30 @@
       line = line.trim();
       if (!line) continue;
       
-      const hasDelim = /[:=\-–—\t]/.test(line);
-      if (!hasDelim && line.includes(',')) {
-        const parts = line.split(',');
-        for (let p of parts) {
-          const w = p.trim().toLowerCase().replace(/[^a-z-]/g, '');
-          if (w) list.push({ word: w, definition: '' });
-        }
-        continue;
-      }
-
       let word = line;
       let definition = '';
-      
-      const delimIndex = line.search(/[:=\-–—\t]/);
+
+      // Check key delimiters (=, :, -)
+      const equalIndex = line.indexOf('=');
+      const colonIndex = line.indexOf(':');
+      const dashIndex = line.indexOf('-');
+
+      let delimIndex = -1;
+      if (equalIndex !== -1) delimIndex = equalIndex;
+      else if (colonIndex !== -1) delimIndex = colonIndex;
+      else if (dashIndex !== -1) delimIndex = dashIndex;
+
       if (delimIndex !== -1) {
         word = line.substring(0, delimIndex).trim();
         definition = line.substring(delimIndex + 1).trim();
+
+        // Strip surrounding quotes from definition if present
+        if ((definition.startsWith('"') && definition.endsWith('"')) || 
+            (definition.startsWith("'") && definition.endsWith("'"))) {
+          definition = definition.substring(1, definition.length - 1).trim();
+        }
       }
-      
+
       const cleanWord = word.toLowerCase().replace(/[^a-z-]/g, '');
       if (cleanWord.length > 0) {
         list.push({ word: cleanWord, definition: definition });
@@ -382,6 +376,8 @@
   }
 
   function startCurrentWord() {
+    if (!currentBatch || currentBatch.length === 0 || !currentBatch[currentIndex]) return;
+    
     currentWord = currentBatch[currentIndex].word;
     currentDefinition = currentBatch[currentIndex].definition;
     
@@ -433,11 +429,9 @@
 
   function checkEnterKey(e) { if(e.key === 'Enter') submitSpelling(); }
 
-  // DEFINITION LOOKUP: PRIORITY TO USER-PASTED DEFINITION, THEN APIS, THEN GOOGLE FALLBACK
   async function fetchDefinition(word, customDef) {
     const defBox = document.getElementById('wordDefinition');
     
-    // Priority 1: User pasted definition alongside the word
     if (customDef && customDef.trim().length > 0) {
       defBox.innerHTML = `📖 <b>Definition:</b> ${customDef.trim()}`;
       return;
@@ -449,7 +443,6 @@
 
     defBox.innerHTML = `<i>Searching definition for "${cleanWord}"...</i>`;
 
-    // Tier 1 API: FreeDictionary
     try {
       const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`);
       if (res.ok) {
@@ -465,11 +458,8 @@
           }
         }
       }
-    } catch (e) {
-      console.warn("Tier 1 Dictionary API failed, trying fallback...", e);
-    }
+    } catch (e) { console.warn("API 1 failed", e); }
 
-    // Tier 2 API: Datamuse
     try {
       const res = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(cleanWord)}&md=d&max=1`);
       if (res.ok) {
@@ -483,12 +473,9 @@
           return;
         }
       }
-    } catch (e) {
-      console.warn("Tier 2 Datamuse API failed...", e);
-    }
+    } catch (e) { console.warn("API 2 failed", e); }
 
-    // Tier 3: Direct Google Link
-    defBox.innerHTML = `📖 <b>Definition:</b> <i>No definition found online.</i> ${googleFallbackHtml}`;
+    defBox.innerHTML = `📖 <b>Definition:</b> <i>No online definition found.</i> ${googleFallbackHtml}`;
   }
 
   function showSentencePhase() {
@@ -649,7 +636,7 @@
     }
     container.innerHTML = list.map(item => `
       <div class="review-item">
-        <span>📌 ${item.word} ${item.definition ? `<small style="font-weight:normal; color:#64748B;">(${item.definition})</small>` : ''}</span>
+        <span>📌 ${item.word} ${item.definition ? `<small style="font-weight:normal; color:#64748B;">("${item.definition}")</small>` : ''}</span>
         <button onclick="speakWordText('${item.word}')">🔊</button>
       </div>
     `).join('');
