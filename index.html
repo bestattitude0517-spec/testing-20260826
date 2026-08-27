@@ -40,6 +40,16 @@
     .masked-word { font-size: 2.2rem; letter-spacing: 6px; font-weight: bold; color: var(--primary); margin: 15px 0; }
     input[type="text"] { font-size: 1.3rem; padding: 10px; border: 2px solid #CBD5E1; border-radius: 8px; text-align: center; width: 100%; margin-bottom: 10px; }
 
+    /* Batch Selection List Styles */
+    .batch-list { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
+    .batch-item-btn { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: #FFFFFF; border: 2px solid #E2E8F0; border-radius: 10px; font-size: 1.05rem; font-weight: bold; cursor: pointer; transition: 0.2s; text-align: left; }
+    .batch-item-btn:hover { border-color: var(--primary); background: #EFF6FF; }
+    .batch-range { color: var(--primary); font-family: monospace; font-size: 1.1rem; }
+    .batch-preview { color: #64748B; font-weight: normal; }
+
+    /* Definition Display Box */
+    .definition-box { background: #EFF6FF; border-left: 4px solid var(--primary); padding: 12px 15px; border-radius: 6px; margin: 15px 0; text-align: left; font-size: 0.95rem; line-height: 1.4; color: #1E293B; }
+
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
     .modal-overlay.active { display: flex; }
     .modal-content { background: white; padding: 30px; border-radius: 16px; max-width: 500px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
@@ -72,35 +82,53 @@
     <p style="color: #64748B; margin-bottom: 5px;">Paste or type your full word list below (auto-saved):</p>
     
     <textarea id="wordInput" oninput="saveWordListToStorage()" placeholder="Paste your vocabulary words here...&#10;&#10;Example:&#10;apple&#10;banana&#10;elephant&#10;guitar"></textarea>
-    <button class="btn btn-secondary" onclick="startNewGameFromTop()">🚀 Start Game (Batch Words #1 - #10)</button>
+    <button class="btn btn-secondary" onclick="goToBatchMenu()">🚀 View Game Batches</button>
   </div>
 
   <!-- SECTION 2: SPELLING & SENTENCE GAME -->
   <div id="gameTab" class="section">
-    <div class="game-card">
-      <div class="progress-bar" id="gameProgress">Word 1 of 10</div>
-      
-      <h3>Listen & Spell the Word:</h3>
-      <button class="speak-btn" onclick="speakCurrentWord()">🔊</button>
-      <div class="masked-word" id="maskedWord">a _ _ l e</div>
+    <!-- VIEW A: BATCH SELECTION MENU -->
+    <div id="batchSelectionView">
+      <h2>Select a Game Batch</h2>
+      <p style="text-align:center; color:#64748B;">Choose a 10-word batch to start practicing:</p>
+      <div id="batchListContainer" class="batch-list"></div>
+    </div>
 
-      <input type="text" id="userInput" placeholder="Type word here..." style="max-width: 320px;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeyup="checkEnterKey(event)">
-      <br>
-      <button class="btn" id="submitBtn" onclick="submitSpelling()">Submit Answer</button>
+    <!-- VIEW B: ACTIVE GAME CARD -->
+    <div id="activeGameView" style="display: none;">
+      <div style="text-align: left; margin-bottom: 10px;">
+        <button class="btn btn-secondary" style="width: auto; padding: 6px 14px; font-size: 0.9rem;" onclick="showBatchSelectionView()">⬅️ Back to Batch List</button>
+      </div>
 
-      <!-- Sentence / Meaning Section -->
-      <div id="sentencePhase" style="display: none; margin-top: 25px; border-top: 2px dashed #CBD5E1; padding-top: 15px;">
-        <h4 style="color: var(--primary); margin-bottom: 5px;">🌟 Sentence Challenge</h4>
-        <p style="font-size: 0.95rem; color: #64748B; margin-top: 0; margin-bottom: 10px;">
-          Speak or type a sentence using target word "<b id="targetWordInSentence" style="color:var(--primary);"></b>":
-        </p>
+      <div class="game-card">
+        <div class="progress-bar" id="gameProgress">Word 1 of 10</div>
         
-        <button class="btn btn-secondary" style="margin-bottom: 10px;" onclick="startSpeechRecognition()">🎤 Speak Sentence</button>
-        
-        <input type="text" id="sentenceInput" placeholder="Or type sentence here..." autocomplete="off" onkeyup="checkSentenceInput(event)">
-        <div id="sentenceFeedback" style="font-size: 0.9rem; font-weight: bold; margin-top: 5px; height: 25px;"></div>
-        
-        <button class="btn btn-warning" id="nextWordBtn" disabled onclick="nextWordInBatch()" style="margin-top: 10px;">Next Word ➡️</button>
+        <h3>Listen & Spell the Word:</h3>
+        <button class="speak-btn" onclick="speakCurrentWord()">🔊</button>
+        <div class="masked-word" id="maskedWord">a _ _ l e</div>
+
+        <input type="text" id="userInput" placeholder="Type word here..." style="max-width: 320px;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeyup="checkEnterKey(event)">
+        <br>
+        <button class="btn" id="submitBtn" onclick="submitSpelling()">Submit Answer</button>
+
+        <!-- Sentence & Definition Section -->
+        <div id="sentencePhase" style="display: none; margin-top: 25px; border-top: 2px dashed #CBD5E1; padding-top: 15px;">
+          
+          <!-- Live Definition Box -->
+          <div id="wordDefinition" class="definition-box">🔍 Fetching definition...</div>
+
+          <h4 style="color: var(--primary); margin-bottom: 5px;">🌟 Sentence Challenge</h4>
+          <p style="font-size: 0.95rem; color: #64748B; margin-top: 0; margin-bottom: 10px;">
+            Speak or type a sentence using target word "<b id="targetWordInSentence" style="color:var(--primary);"></b>":
+          </p>
+          
+          <button class="btn btn-secondary" style="margin-bottom: 10px;" onclick="startSpeechRecognition()">🎤 Speak Sentence</button>
+          
+          <input type="text" id="sentenceInput" placeholder="Or type sentence here..." autocomplete="off" onkeyup="checkSentenceInput(event)">
+          <div id="sentenceFeedback" style="font-size: 0.9rem; font-weight: bold; margin-top: 5px; height: 25px;"></div>
+          
+          <button class="btn btn-warning" id="nextWordBtn" disabled onclick="nextWordInBatch()" style="margin-top: 10px;">Next Word ➡️</button>
+        </div>
       </div>
     </div>
   </div>
@@ -179,13 +207,12 @@
     };
   }
 
-  // Restore saved word list on initial load
   window.addEventListener('DOMContentLoaded', loadSavedWordList);
 
   function focusMainInput() {
     setTimeout(() => {
       const input = document.getElementById('userInput');
-      if (input && document.getElementById('gameTab').classList.contains('active') && !input.disabled) {
+      if (input && document.getElementById('activeGameView').style.display !== 'none' && !input.disabled) {
         input.focus();
         input.select();
       }
@@ -216,16 +243,19 @@
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(tabId).classList.add('active');
     if(evt) evt.target.classList.add('active');
+    
+    if(tabId === 'gameTab') {
+      renderBatchList();
+    }
     if(tabId === 'reviewTab') renderReviewList();
     if(tabId === 'historyTab') renderHistoryLogs();
-    if(tabId === 'gameTab') focusMainInput();
   }
 
   function switchTabDirect(tabId) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(tabId).classList.add('active');
-    if(tabId === 'gameTab') focusMainInput();
+    if(tabId === 'gameTab') renderBatchList();
   }
 
   function parseWordList() {
@@ -233,31 +263,69 @@
     return raw.split(/[\s,\n]+/).map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
   }
 
-  function startNewGameFromTop() {
-    saveWordListToStorage();
-    activeWords = parseWordList();
-    if(activeWords.length === 0) {
-      alert("Please enter vocabulary words first!");
-      return;
-    }
-    batchOffset = 0;
-    loadNextBatch();
+  function maskPreview(word) {
+    if (!word) return '';
+    if (word.length <= 3) return word.substring(0, 1) + '***';
+    return word.substring(0, 3) + '***';
   }
 
-  function loadNextBatch() {
-    if (activeWords.length === 0) activeWords = parseWordList();
-
-    if (batchOffset >= activeWords.length) {
-      alert("🎉 You have completed all words in your list! Restarting from word #1.");
-      batchOffset = 0;
+  function renderBatchList() {
+    saveWordListToStorage();
+    activeWords = parseWordList();
+    const container = document.getElementById('batchListContainer');
+    
+    if (activeWords.length === 0) {
+      container.innerHTML = `<p style="text-align:center; color:#64748B;"><i>No words found. Please paste your word list under the <b>Word List</b> tab!</i></p>`;
+      showBatchSelectionView();
+      return;
     }
 
+    let html = '';
+    const totalBatches = Math.ceil(activeWords.length / 10);
+
+    for (let i = 0; i < totalBatches; i++) {
+      const startIdx = i * 10;
+      const endIdx = Math.min(startIdx + 10, activeWords.length);
+      const batchWords = activeWords.slice(startIdx, endIdx);
+      
+      const firstMasked = maskPreview(batchWords[0]);
+      const lastMasked = maskPreview(batchWords[batchWords.length - 1]);
+      
+      const numStartStr = (startIdx + 1).toString().padStart(2, '0');
+      const numEndStr = endIdx.toString().padStart(2, '0');
+
+      html += `
+        <button class="batch-item-btn" onclick="startSelectedBatch(${startIdx})">
+          <span class="batch-range">#${numStartStr} - #${numEndStr}</span>
+          <span class="batch-preview">(${firstMasked} - ${lastMasked})</span>
+        </button>
+      `;
+    }
+
+    container.innerHTML = html;
+    showBatchSelectionView();
+  }
+
+  function goToBatchMenu() {
+    switchTabDirect('gameTab');
+  }
+
+  function showBatchSelectionView() {
+    document.getElementById('batchSelectionView').style.display = 'block';
+    document.getElementById('activeGameView').style.display = 'none';
+  }
+
+  function startSelectedBatch(offset) {
+    activeWords = parseWordList();
+    batchOffset = offset;
     currentBatch = activeWords.slice(batchOffset, batchOffset + 10);
     currentIndex = 0;
     batchLogs = [];
 
+    document.getElementById('batchSelectionView').style.display = 'none';
+    document.getElementById('activeGameView').style.display = 'block';
+
     startCurrentWord();
-    switchTabDirect('gameTab');
   }
 
   function getMaskedString(word, count) {
@@ -294,6 +362,7 @@
     document.getElementById('sentenceInput').value = "";
     document.getElementById('sentenceFeedback').innerHTML = "";
     document.getElementById('targetWordInSentence').innerText = currentWord;
+    document.getElementById('wordDefinition').innerHTML = "🔍 Fetching definition...";
     
     document.getElementById('nextWordBtn').disabled = true;
 
@@ -325,11 +394,31 @@
 
   function checkEnterKey(e) { if(e.key === 'Enter') submitSpelling(); }
 
+  async function fetchDefinition(word) {
+    const defBox = document.getElementById('wordDefinition');
+    defBox.innerHTML = `<i>Searching definition for "${word}"...</i>`;
+    try {
+      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+      if (!res.ok) throw new Error("Not found");
+      const data = await res.json();
+      
+      const firstMeaning = data[0]?.meanings[0];
+      const partOfSpeech = firstMeaning?.partOfSpeech ? `<i>(${firstMeaning.partOfSpeech})</i> ` : '';
+      const definition = firstMeaning?.definitions[0]?.definition || "Definition not found.";
+      
+      defBox.innerHTML = `📖 <b>Definition:</b> ${partOfSpeech}${definition}`;
+    } catch (err) {
+      defBox.innerHTML = `📖 <b>Definition:</b> <i>Definition not found for "${word}".</i>`;
+    }
+  }
+
   function showSentencePhase() {
     document.getElementById('maskedWord').innerText = `🎉 Correct: ${currentWord.toUpperCase()}!`;
     document.getElementById('userInput').disabled = true;
     document.getElementById('submitBtn').disabled = true;
     document.getElementById('sentencePhase').style.display = 'block';
+    
+    fetchDefinition(currentWord);
     focusSentenceInput();
   }
 
@@ -449,9 +538,9 @@
         const nextStart = batchOffset + 1;
         const nextEnd = Math.min(batchOffset + 10, activeWords.length);
         if (confirm(`🎉 Batch Complete!\n\nStart Next Batch: Words #${nextStart} to #${nextEnd}?`)) {
-          loadNextBatch();
+          startSelectedBatch(batchOffset);
         } else {
-          switchTabDirect('inputTab');
+          renderBatchList();
         }
       } else {
         alert("🎉 Fantastic! You completed all vocabulary words in your list!");
@@ -498,8 +587,7 @@
       return;
     }
     activeWords = [...list];
-    batchOffset = 0;
-    loadNextBatch();
+    startSelectedBatch(0);
   }
 
   function clearReviewList() {
