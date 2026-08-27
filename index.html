@@ -265,8 +265,9 @@
 
   function maskPreview(word) {
     if (!word) return '';
-    if (word.length <= 3) return word.substring(0, 1) + '***';
-    return word.substring(0, 3) + '***';
+    const clean = word.replace(/[^a-z-]/g, '');
+    if (clean.length <= 3) return clean.substring(0, 1) + '***';
+    return clean.substring(0, 3) + '***';
   }
 
   function renderBatchList() {
@@ -396,19 +397,42 @@
 
   async function fetchDefinition(word) {
     const defBox = document.getElementById('wordDefinition');
-    defBox.innerHTML = `<i>Searching definition for "${word}"...</i>`;
+    const cleanWord = word.trim().toLowerCase().replace(/[^a-z-]/g, '');
+    defBox.innerHTML = `<i>Searching definition for "${cleanWord}"...</i>`;
+
     try {
-      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
-      if (!res.ok) throw new Error("Not found");
-      const data = await res.json();
+      // 1. Primary Dictionary API
+      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`);
+      if (res.ok) {
+        const data = await res.json();
+        const firstMeaning = data[0]?.meanings?.[0];
+        const partOfSpeech = firstMeaning?.partOfSpeech ? `<i>(${firstMeaning.partOfSpeech})</i> ` : '';
+        const definition = firstMeaning?.definitions?.[0]?.definition;
+        
+        if (definition) {
+          defBox.innerHTML = `📖 <b>Definition:</b> ${partOfSpeech}${definition}`;
+          return;
+        }
+      }
       
-      const firstMeaning = data[0]?.meanings[0];
-      const partOfSpeech = firstMeaning?.partOfSpeech ? `<i>(${firstMeaning.partOfSpeech})</i> ` : '';
-      const definition = firstMeaning?.definitions[0]?.definition || "Definition not found.";
-      
-      defBox.innerHTML = `📖 <b>Definition:</b> ${partOfSpeech}${definition}`;
+      // 2. Fallback to Datamuse API
+      const fallbackRes = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(cleanWord)}&md=d&max=1`);
+      if (fallbackRes.ok) {
+        const fallbackData = await fallbackRes.json();
+        if (fallbackData.length > 0 && fallbackData[0].defs?.length > 0) {
+          const rawDef = fallbackData[0].defs[0];
+          const parts = rawDef.split('\t');
+          const pos = parts.length > 1 ? `<i>(${parts[0]})</i> ` : '';
+          const defText = parts.length > 1 ? parts[1] : rawDef;
+          
+          defBox.innerHTML = `📖 <b>Definition:</b> ${pos}${defText}`;
+          return;
+        }
+      }
+
+      defBox.innerHTML = `📖 <b>Definition:</b> <i>Definition not found for "${cleanWord}".</i>`;
     } catch (err) {
-      defBox.innerHTML = `📖 <b>Definition:</b> <i>Definition not found for "${word}".</i>`;
+      defBox.innerHTML = `📖 <b>Definition:</b> <i>Definition unavailable right now.</i>`;
     }
   }
 
