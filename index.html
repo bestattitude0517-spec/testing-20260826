@@ -79,10 +79,13 @@
   <div id="inputTab" class="section active">
     <h2>Enter Vocabulary & Definitions</h2>
     <p style="color: #64748B; margin-bottom: 5px; font-size:0.95rem;">
-      Format: <code>word = "definition"</code> per line (one volume):
+      Format: <code>word = "definition"</code> per line:
     </p>
     
-    <textarea id="wordInput" oninput="saveWordListToStorage()" placeholder='apple = "a round fruit growing on trees"&#10;yesterday = "the day before today"&#10;elephant = "a large gray mammal with a trunk"&#10;guitar = "a stringed musical instrument"'></textarea>
+    <textarea id="wordInput" oninput="saveWordListToStorage()">Gemini = "a personal AI collaborator that assists with code, writing, and problem-solving"
+prompt = "an instruction or input given to an AI model to elicit a specific response"
+volume = "a book forming part of a work or series"
+definition = "a statement of the exact meaning of a word"</textarea>
     <button class="btn btn-secondary" onclick="goToBatchMenu()">🚀 View Game Batches</button>
   </div>
 
@@ -251,7 +254,6 @@
     if(tabId === 'gameTab') renderBatchList();
   }
 
-  // PARSER: Correctly handles word = "definition", word = definition, word : definition, word - definition
   function parseWordList() {
     const raw = document.getElementById('wordInput').value;
     const lines = raw.split(/\r?\n/);
@@ -264,7 +266,6 @@
       let word = line;
       let definition = '';
 
-      // Check key delimiters (=, :, -)
       const equalIndex = line.indexOf('=');
       const colonIndex = line.indexOf(':');
       const dashIndex = line.indexOf('-');
@@ -278,7 +279,6 @@
         word = line.substring(0, delimIndex).trim();
         definition = line.substring(delimIndex + 1).trim();
 
-        // Strip surrounding quotes from definition if present
         if ((definition.startsWith('"') && definition.endsWith('"')) || 
             (definition.startsWith("'") && definition.endsWith("'"))) {
           definition = definition.substring(1, definition.length - 1).trim();
