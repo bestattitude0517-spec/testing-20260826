@@ -31,7 +31,7 @@
     .btn-warning { background: var(--warning); }
     .btn-danger { background: var(--accent); }
 
-    textarea { width: 100%; height: 200px; border: 2px solid #CBD5E1; border-radius: 8px; padding: 12px; font-size: 1.1rem; margin-top: 10px; line-height: 1.5; resize: vertical; }
+    textarea { width: 100%; height: 220px; border: 2px solid #CBD5E1; border-radius: 8px; padding: 12px; font-size: 1rem; margin-top: 10px; line-height: 1.5; resize: vertical; }
 
     .game-card { text-align: center; padding: 20px; background: #F8FAFC; border-radius: 12px; border: 2px solid #E2E8F0; }
     .progress-bar { font-size: 1rem; font-weight: bold; color: var(--primary); margin-bottom: 10px; }
@@ -49,6 +49,7 @@
 
     /* Definition Display Box */
     .definition-box { background: #EFF6FF; border-left: 4px solid var(--primary); padding: 12px 15px; border-radius: 6px; margin: 15px 0; text-align: left; font-size: 0.95rem; line-height: 1.4; color: #1E293B; }
+    .def-link { color: var(--primary); font-weight: bold; text-decoration: underline; cursor: pointer; }
 
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
     .modal-overlay.active { display: flex; }
@@ -78,10 +79,12 @@
 
   <!-- SECTION 1: MANUAL WORD INPUT -->
   <div id="inputTab" class="section active">
-    <h2>Enter Vocabulary Words</h2>
-    <p style="color: #64748B; margin-bottom: 5px;">Paste or type your full word list below (auto-saved):</p>
+    <h2>Enter Vocabulary & Definitions</h2>
+    <p style="color: #64748B; margin-bottom: 5px; font-size:0.95rem;">
+      Paste words with definitions using <code>-</code> or <code>:</code> (e.g. <i>apple - a fruit</i>):
+    </p>
     
-    <textarea id="wordInput" oninput="saveWordListToStorage()" placeholder="Paste your vocabulary words here...&#10;&#10;Example:&#10;apple&#10;banana&#10;elephant&#10;guitar"></textarea>
+    <textarea id="wordInput" oninput="saveWordListToStorage()" placeholder="Paste photo OCR text or type here...&#10;&#10;yesterday - the day before today&#10;apple : a round fruit that grows on trees&#10;elephant - a very large mammal with a trunk&#10;guitar"></textarea>
     <button class="btn btn-secondary" onclick="goToBatchMenu()">🚀 View Game Batches</button>
   </div>
 
@@ -168,12 +171,13 @@
 </div>
 
 <script>
-  let activeWords = [];
+  let activeWords = []; // Objects: { word: string, definition: string }
   let currentBatch = [];
   let batchOffset = 0;
   let currentIndex = 0;
   let isFirstAttempt = true;
   let currentWord = "";
+  let currentDefinition = "";
   let practiceCount = 0;
   let revealedCount = 1;
   let sentenceDone = false;
@@ -258,9 +262,41 @@
     if(tabId === 'gameTab') renderBatchList();
   }
 
+  // PARSER: Supports word-only, word - definition, word : definition, word = definition
   function parseWordList() {
     const raw = document.getElementById('wordInput').value;
-    return raw.split(/[\s,\n]+/).map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
+    const lines = raw.split(/\r?\n/);
+    const list = [];
+    
+    for (let line of lines) {
+      line = line.trim();
+      if (!line) continue;
+      
+      const hasDelim = /[:=\-–—\t]/.test(line);
+      if (!hasDelim && line.includes(',')) {
+        const parts = line.split(',');
+        for (let p of parts) {
+          const w = p.trim().toLowerCase().replace(/[^a-z-]/g, '');
+          if (w) list.push({ word: w, definition: '' });
+        }
+        continue;
+      }
+
+      let word = line;
+      let definition = '';
+      
+      const delimIndex = line.search(/[:=\-–—\t]/);
+      if (delimIndex !== -1) {
+        word = line.substring(0, delimIndex).trim();
+        definition = line.substring(delimIndex + 1).trim();
+      }
+      
+      const cleanWord = word.toLowerCase().replace(/[^a-z-]/g, '');
+      if (cleanWord.length > 0) {
+        list.push({ word: cleanWord, definition: definition });
+      }
+    }
+    return list;
   }
 
   function maskPreview(word) {
@@ -289,8 +325,8 @@
       const endIdx = Math.min(startIdx + 10, activeWords.length);
       const batchWords = activeWords.slice(startIdx, endIdx);
       
-      const firstMasked = maskPreview(batchWords[0]);
-      const lastMasked = maskPreview(batchWords[batchWords.length - 1]);
+      const firstMasked = maskPreview(batchWords[0].word);
+      const lastMasked = maskPreview(batchWords[batchWords.length - 1].word);
       
       const numStartStr = (startIdx + 1).toString().padStart(2, '0');
       const numEndStr = endIdx.toString().padStart(2, '0');
@@ -346,7 +382,9 @@
   }
 
   function startCurrentWord() {
-    currentWord = currentBatch[currentIndex];
+    currentWord = currentBatch[currentIndex].word;
+    currentDefinition = currentBatch[currentIndex].definition;
+    
     isFirstAttempt = true;
     revealedCount = 1;
     sentenceDone = false;
@@ -395,45 +433,62 @@
 
   function checkEnterKey(e) { if(e.key === 'Enter') submitSpelling(); }
 
-  async function fetchDefinition(word) {
+  // DEFINITION LOOKUP: PRIORITY TO USER-PASTED DEFINITION, THEN APIS, THEN GOOGLE FALLBACK
+  async function fetchDefinition(word, customDef) {
     const defBox = document.getElementById('wordDefinition');
+    
+    // Priority 1: User pasted definition alongside the word
+    if (customDef && customDef.trim().length > 0) {
+      defBox.innerHTML = `📖 <b>Definition:</b> ${customDef.trim()}`;
+      return;
+    }
+
     const cleanWord = word.trim().toLowerCase().replace(/[^a-z-]/g, '');
+    const googleSearchUrl = `https://www.google.com/search?q=define+${encodeURIComponent(cleanWord)}`;
+    const googleFallbackHtml = `<br><a href="${googleSearchUrl}" target="_blank" class="def-link">🔍 Search definition on Google</a>`;
+
     defBox.innerHTML = `<i>Searching definition for "${cleanWord}"...</i>`;
 
+    // Tier 1 API: FreeDictionary
     try {
-      // 1. Primary Dictionary API
       const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`);
       if (res.ok) {
         const data = await res.json();
-        const firstMeaning = data[0]?.meanings?.[0];
-        const partOfSpeech = firstMeaning?.partOfSpeech ? `<i>(${firstMeaning.partOfSpeech})</i> ` : '';
-        const definition = firstMeaning?.definitions?.[0]?.definition;
-        
-        if (definition) {
-          defBox.innerHTML = `📖 <b>Definition:</b> ${partOfSpeech}${definition}`;
-          return;
+        const meanings = data[0]?.meanings;
+        if (meanings && meanings.length > 0) {
+          const firstMeaning = meanings[0];
+          const pos = firstMeaning.partOfSpeech ? `<i>(${firstMeaning.partOfSpeech})</i> ` : '';
+          const def = firstMeaning.definitions?.[0]?.definition;
+          if (def) {
+            defBox.innerHTML = `📖 <b>Definition:</b> ${pos}${def}`;
+            return;
+          }
         }
       }
-      
-      // 2. Fallback to Datamuse API
-      const fallbackRes = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(cleanWord)}&md=d&max=1`);
-      if (fallbackRes.ok) {
-        const fallbackData = await fallbackRes.json();
-        if (fallbackData.length > 0 && fallbackData[0].defs?.length > 0) {
-          const rawDef = fallbackData[0].defs[0];
+    } catch (e) {
+      console.warn("Tier 1 Dictionary API failed, trying fallback...", e);
+    }
+
+    // Tier 2 API: Datamuse
+    try {
+      const res = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(cleanWord)}&md=d&max=1`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.length > 0 && data[0].defs && data[0].defs.length > 0) {
+          const rawDef = data[0].defs[0];
           const parts = rawDef.split('\t');
           const pos = parts.length > 1 ? `<i>(${parts[0]})</i> ` : '';
           const defText = parts.length > 1 ? parts[1] : rawDef;
-          
           defBox.innerHTML = `📖 <b>Definition:</b> ${pos}${defText}`;
           return;
         }
       }
-
-      defBox.innerHTML = `📖 <b>Definition:</b> <i>Definition not found for "${cleanWord}".</i>`;
-    } catch (err) {
-      defBox.innerHTML = `📖 <b>Definition:</b> <i>Definition unavailable right now.</i>`;
+    } catch (e) {
+      console.warn("Tier 2 Datamuse API failed...", e);
     }
+
+    // Tier 3: Direct Google Link
+    defBox.innerHTML = `📖 <b>Definition:</b> <i>No definition found online.</i> ${googleFallbackHtml}`;
   }
 
   function showSentencePhase() {
@@ -442,7 +497,7 @@
     document.getElementById('submitBtn').disabled = true;
     document.getElementById('sentencePhase').style.display = 'block';
     
-    fetchDefinition(currentWord);
+    fetchDefinition(currentWord, currentDefinition);
     focusSentenceInput();
   }
 
@@ -456,7 +511,7 @@
       showSentencePhase();
     } else {
       if (isFirstAttempt) {
-        saveToDailyReview(currentWord);
+        saveToDailyReview(currentWord, currentDefinition);
         batchLogs.push({ word: currentWord, status: 'wrong' });
         isFirstAttempt = false;
       }
@@ -577,10 +632,10 @@
     return JSON.parse(localStorage.getItem('vocab_review_queue') || "[]");
   }
 
-  function saveToDailyReview(word) {
+  function saveToDailyReview(word, def) {
     let list = getReviewList();
-    if (!list.includes(word)) {
-      list.push(word);
+    if (!list.some(item => item.word === word)) {
+      list.push({ word: word, definition: def || '' });
       localStorage.setItem('vocab_review_queue', JSON.stringify(list));
     }
   }
@@ -592,7 +647,12 @@
       container.innerHTML = "<p><i>No missed words saved today yet!</i></p>";
       return;
     }
-    container.innerHTML = list.map(w => `<div class="review-item"><span>📌 ${w}</span> <button onclick="speakWordText('${w}')">🔊</button></div>`).join('');
+    container.innerHTML = list.map(item => `
+      <div class="review-item">
+        <span>📌 ${item.word} ${item.definition ? `<small style="font-weight:normal; color:#64748B;">(${item.definition})</small>` : ''}</span>
+        <button onclick="speakWordText('${item.word}')">🔊</button>
+      </div>
+    `).join('');
   }
 
   function speakWordText(w) {
