@@ -30,7 +30,6 @@
     .btn-secondary { background: var(--secondary); color: #111; }
     .btn-warning { background: var(--warning); }
     .btn-danger { background: var(--accent); }
-    .btn-outline { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
 
     textarea { width: 100%; height: 200px; border: 2px solid #CBD5E1; border-radius: 8px; padding: 12px; font-size: 1.1rem; margin-top: 10px; line-height: 1.5; resize: vertical; }
 
@@ -39,7 +38,7 @@
     .speak-btn { font-size: 2.5rem; background: none; border: 2px solid var(--primary); border-radius: 50%; width: 70px; height: 70px; cursor: pointer; margin: 15px auto; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
     .speak-btn:hover { transform: scale(1.05); }
     .masked-word { font-size: 2.2rem; letter-spacing: 6px; font-weight: bold; color: var(--primary); margin: 15px 0; }
-    input[type="text"] { font-size: 1.4rem; padding: 10px; border: 2px solid #CBD5E1; border-radius: 8px; text-align: center; width: 80%; max-width: 320px; margin-bottom: 15px; }
+    input[type="text"] { font-size: 1.3rem; padding: 10px; border: 2px solid #CBD5E1; border-radius: 8px; text-align: center; width: 100%; margin-bottom: 10px; }
 
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
     .modal-overlay.active { display: flex; }
@@ -70,9 +69,9 @@
   <!-- SECTION 1: MANUAL WORD INPUT -->
   <div id="inputTab" class="section active">
     <h2>Enter Vocabulary Words</h2>
-    <p style="color: #64748B; margin-bottom: 5px;">Paste or type your full word list below:</p>
+    <p style="color: #64748B; margin-bottom: 5px;">Paste or type your full word list below (auto-saved):</p>
     
-    <textarea id="wordInput" placeholder="Paste your vocabulary words here...&#10;&#10;Example:&#10;apple&#10;banana&#10;elephant&#10;guitar"></textarea>
+    <textarea id="wordInput" oninput="saveWordListToStorage()" placeholder="Paste your vocabulary words here...&#10;&#10;Example:&#10;apple&#10;banana&#10;elephant&#10;guitar"></textarea>
     <button class="btn btn-secondary" onclick="startNewGameFromTop()">🚀 Start Game (Batch Words #1 - #10)</button>
   </div>
 
@@ -85,21 +84,23 @@
       <button class="speak-btn" onclick="speakCurrentWord()">🔊</button>
       <div class="masked-word" id="maskedWord">a _ _ l e</div>
 
-      <input type="text" id="userInput" placeholder="Type word here..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeyup="checkEnterKey(event)">
+      <input type="text" id="userInput" placeholder="Type word here..." style="max-width: 320px;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeyup="checkEnterKey(event)">
       <br>
       <button class="btn" id="submitBtn" onclick="submitSpelling()">Submit Answer</button>
 
       <!-- Sentence / Meaning Section -->
       <div id="sentencePhase" style="display: none; margin-top: 25px; border-top: 2px dashed #CBD5E1; padding-top: 15px;">
-        <h4 style="color: var(--primary);">🌟 Sentence Challenge (Required)</h4>
-        <p style="font-size: 0.9rem; color: #64748B; margin-bottom: 10px;">Speak a sentence containing the target word to enable the Next button.</p>
+        <h4 style="color: var(--primary); margin-bottom: 5px;">🌟 Sentence Challenge</h4>
+        <p style="font-size: 0.95rem; color: #64748B; margin-top: 0; margin-bottom: 10px;">
+          Speak or type a sentence using target word "<b id="targetWordInSentence" style="color:var(--primary);"></b>":
+        </p>
         
-        <button class="btn btn-secondary" onclick="startSpeechRecognition()">🎤 Speak Sentence</button>
-        <button class="btn btn-outline" style="margin-top: 5px; font-size: 0.9rem;" onclick="markSentenceCompletedManually()">🗣️ Spoken Aloud to Parent / Self (Pass)</button>
+        <button class="btn btn-secondary" style="margin-bottom: 10px;" onclick="startSpeechRecognition()">🎤 Speak Sentence</button>
         
-        <div id="speechOutput" style="margin-top: 10px; font-style: italic; color: #475569;">"Press a button above after speaking..."</div>
+        <input type="text" id="sentenceInput" placeholder="Or type sentence here..." autocomplete="off" onkeyup="checkSentenceInput(event)">
+        <div id="sentenceFeedback" style="font-size: 0.9rem; font-weight: bold; margin-top: 5px; height: 25px;"></div>
         
-        <button class="btn btn-warning" id="nextWordBtn" disabled onclick="nextWordInBatch()" style="margin-top: 15px;">Next Word ➡️</button>
+        <button class="btn btn-warning" id="nextWordBtn" disabled onclick="nextWordInBatch()" style="margin-top: 10px;">Next Word ➡️</button>
       </div>
     </div>
   </div>
@@ -132,7 +133,7 @@
 
     <div class="badge" id="repeatCounter">Success: 0 / 3</div>
     <br><br>
-    <input type="text" id="practiceInput" placeholder="Type word from memory..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeyup="checkPracticeEnterKey(event)">
+    <input type="text" id="practiceInput" placeholder="Type word from memory..." style="max-width: 320px;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeyup="checkPracticeEnterKey(event)">
     <br>
     <button class="btn btn-warning" onclick="submitPracticeAttempt()">Practice Submit</button>
   </div>
@@ -148,17 +149,54 @@
   let practiceCount = 0;
   let revealedCount = 1;
   let sentenceDone = false;
-  
-  // Current Batch Performance Logs
   let batchLogs = [];
+  
+  let currentUtterance = null;
+  let availableVoices = [];
 
-  // Focus utility helper
+  function saveWordListToStorage() {
+    const raw = document.getElementById('wordInput').value;
+    localStorage.setItem('vocab_saved_word_list', raw);
+  }
+
+  function loadSavedWordList() {
+    const saved = localStorage.getItem('vocab_saved_word_list');
+    if (saved !== null) {
+      document.getElementById('wordInput').value = saved;
+    }
+  }
+
+  function initVoices() {
+    if ('speechSynthesis' in window) {
+      availableVoices = window.speechSynthesis.getVoices();
+    }
+  }
+
+  if ('speechSynthesis' in window) {
+    initVoices();
+    window.speechSynthesis.onvoiceschanged = () => {
+      availableVoices = window.speechSynthesis.getVoices();
+    };
+  }
+
+  // Restore saved word list on initial load
+  window.addEventListener('DOMContentLoaded', loadSavedWordList);
+
   function focusMainInput() {
     setTimeout(() => {
       const input = document.getElementById('userInput');
-      if (input && document.getElementById('gameTab').classList.contains('active')) {
+      if (input && document.getElementById('gameTab').classList.contains('active') && !input.disabled) {
         input.focus();
         input.select();
+      }
+    }, 150);
+  }
+
+  function focusSentenceInput() {
+    setTimeout(() => {
+      const input = document.getElementById('sentenceInput');
+      if (input) {
+        input.focus();
       }
     }, 150);
   }
@@ -173,7 +211,6 @@
     }, 150);
   }
 
-  // UI & Tab Switching
   function switchTab(tabId, evt) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -197,6 +234,7 @@
   }
 
   function startNewGameFromTop() {
+    saveWordListToStorage();
     activeWords = parseWordList();
     if(activeWords.length === 0) {
       alert("Please enter vocabulary words first!");
@@ -253,10 +291,11 @@
     document.getElementById('submitBtn').disabled = false;
     
     document.getElementById('sentencePhase').style.display = 'none';
-    document.getElementById('speechOutput').innerText = '"Press a button above after speaking..."';
+    document.getElementById('sentenceInput').value = "";
+    document.getElementById('sentenceFeedback').innerHTML = "";
+    document.getElementById('targetWordInSentence').innerText = currentWord;
     
-    const nextBtn = document.getElementById('nextWordBtn');
-    nextBtn.disabled = true;
+    document.getElementById('nextWordBtn').disabled = true;
 
     updateMaskedDisplay();
     speakCurrentWord();
@@ -264,15 +303,35 @@
   }
 
   function speakCurrentWord() {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(currentWord);
-      utterance.rate = 0.85;
-      window.speechSynthesis.speak(utterance);
+    if (!('speechSynthesis' in window) || !currentWord) return;
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.resume();
+
+    currentUtterance = new SpeechSynthesisUtterance(currentWord);
+    currentUtterance.rate = 0.85;
+
+    if (availableVoices.length === 0) {
+      availableVoices = window.speechSynthesis.getVoices();
     }
+
+    const englishVoice = availableVoices.find(v => v.lang.startsWith('en')) || availableVoices[0];
+    if (englishVoice) {
+      currentUtterance.voice = englishVoice;
+    }
+
+    window.speechSynthesis.speak(currentUtterance);
   }
 
   function checkEnterKey(e) { if(e.key === 'Enter') submitSpelling(); }
+
+  function showSentencePhase() {
+    document.getElementById('maskedWord').innerText = `🎉 Correct: ${currentWord.toUpperCase()}!`;
+    document.getElementById('userInput').disabled = true;
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('sentencePhase').style.display = 'block';
+    focusSentenceInput();
+  }
 
   function submitSpelling() {
     const userVal = document.getElementById('userInput').value.trim().toLowerCase();
@@ -281,10 +340,7 @@
       if (isFirstAttempt) {
         batchLogs.push({ word: currentWord, status: 'correct' });
       }
-      document.getElementById('maskedWord').innerText = `🎉 Correct: ${currentWord.toUpperCase()}!`;
-      document.getElementById('userInput').disabled = true;
-      document.getElementById('submitBtn').disabled = true;
-      document.getElementById('sentencePhase').style.display = 'block';
+      showSentencePhase();
     } else {
       if (isFirstAttempt) {
         saveToDailyReview(currentWord);
@@ -313,11 +369,8 @@
       document.getElementById('practiceInput').value = "";
       if (practiceCount >= 3) {
         document.getElementById('practiceModal').classList.remove('active');
-        document.getElementById('maskedWord').innerText = `🎉 Correct: ${currentWord.toUpperCase()}!`;
         document.getElementById('userInput').value = currentWord;
-        document.getElementById('userInput').disabled = true;
-        document.getElementById('submitBtn').disabled = true;
-        document.getElementById('sentencePhase').style.display = 'block';
+        showSentencePhase();
       } else {
         focusPracticeInput();
       }
@@ -330,66 +383,83 @@
     }
   }
 
-  function unlockNextButton() {
-    sentenceDone = true;
-    const nextBtn = document.getElementById('nextWordBtn');
-    nextBtn.disabled = false;
-    nextBtn.focus();
-  }
-
-  function markSentenceCompletedManually() {
-    document.getElementById('speechOutput').innerHTML = `<b style="color:green;">✨ Sentence completed & verified!</b>`;
-    unlockNextButton();
-  }
-
   function startSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Voice recognition is restricted on this browser. Click 'Spoken Aloud to Parent' to pass!");
+      alert("Speech recognition isn't supported on this browser context. You can type the sentence below instead!");
       return;
     }
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
-    document.getElementById('speechOutput').innerText = "🎙️ Listening... speak your sentence!";
+    const feedback = document.getElementById('sentenceFeedback');
+    feedback.innerHTML = `🎙️ Listening... speak your sentence!`;
 
     recognition.onresult = (e) => {
       const transcript = e.results[0][0].transcript;
+      document.getElementById('sentenceInput').value = transcript;
+      
       const containsWord = transcript.toLowerCase().includes(currentWord);
-      document.getElementById('speechOutput').innerHTML = `"${transcript}" <br> ${containsWord ? '<b style="color:green;">✨ Target word used correctly!</b>' : '<b style="color:orange;">💡 Sentence captured! Target word missing, but passed!</b>'}`;
-      unlockNextButton();
+      sentenceDone = true;
+      document.getElementById('nextWordBtn').disabled = false;
+      
+      feedback.innerHTML = `"${transcript}" <br> ${containsWord ? '<span style="color:green;">✨ Target word used correctly!</span>' : '<span style="color:orange;">💡 Sentence recorded! Target word missing, but unlocked!</span>'}`;
     };
 
     recognition.onerror = () => {
-      document.getElementById('speechOutput').innerText = "Could not capture voice clearly. Try again or use the Spoken Aloud button!";
+      feedback.innerHTML = `<span style="color:red;">Could not capture voice clearly. Try again or type below!</span>`;
     };
 
     recognition.start();
+  }
+
+  function checkSentenceInput(e) {
+    const val = document.getElementById('sentenceInput').value.trim().toLowerCase();
+    const feedback = document.getElementById('sentenceFeedback');
+    const nextBtn = document.getElementById('nextWordBtn');
+
+    if (val.includes(currentWord)) {
+      sentenceDone = true;
+      feedback.innerHTML = `<span style="color: green;">✨ Target word "${currentWord}" detected!</span>`;
+      nextBtn.disabled = false;
+      if (e.key === 'Enter') {
+        nextWordInBatch();
+      }
+    } else if (val.length > 0) {
+      sentenceDone = false;
+      feedback.innerHTML = `<span style="color: var(--warning);">💡 Include target word "${currentWord}" in your sentence!</span>`;
+      nextBtn.disabled = true;
+    } else {
+      sentenceDone = false;
+      feedback.innerHTML = "";
+      nextBtn.disabled = true;
+    }
   }
 
   function nextWordInBatch() {
     if (!sentenceDone) return;
 
     currentIndex++;
-    if(currentIndex < currentBatch.length) {
+    if (currentIndex < currentBatch.length) {
       startCurrentWord();
     } else {
       saveBatchToHistory();
       batchOffset += currentBatch.length;
       
       if (batchOffset < activeWords.length) {
-        if(confirm(`🎉 Batch Complete!\nStart next batch (Words #${batchOffset + 1} to #${Math.min(batchOffset + 10, activeWords.length)})?`)) {
+        const nextStart = batchOffset + 1;
+        const nextEnd = Math.min(batchOffset + 10, activeWords.length);
+        if (confirm(`🎉 Batch Complete!\n\nStart Next Batch: Words #${nextStart} to #${nextEnd}?`)) {
           loadNextBatch();
         } else {
           switchTabDirect('inputTab');
         }
       } else {
-        alert("🎉 Fantastic! You completed all vocabulary words!");
+        alert("🎉 Fantastic! You completed all vocabulary words in your list!");
         switchTabDirect('historyTab');
       }
     }
   }
 
-  // --- REVIEW QUEUE LOGIC ---
   function getReviewList() {
     return JSON.parse(localStorage.getItem('vocab_review_queue') || "[]");
   }
@@ -414,7 +484,10 @@
 
   function speakWordText(w) {
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.speak(new SpeechSynthesisUtterance(w));
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
+      currentUtterance = new SpeechSynthesisUtterance(w);
+      window.speechSynthesis.speak(currentUtterance);
     }
   }
 
@@ -436,7 +509,6 @@
     }
   }
 
-  // --- HISTORY LOGIC ---
   function getHistoryLogs() {
     return JSON.parse(localStorage.getItem('vocab_history_logs') || "[]");
   }
@@ -454,7 +526,7 @@
       details: batchLogs
     };
 
-    logs.unshift(entry); // newest first
+    logs.unshift(entry);
     localStorage.setItem('vocab_history_logs', JSON.stringify(logs));
   }
 
