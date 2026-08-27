@@ -178,7 +178,7 @@ volume = "a book forming part of a work or series"</textarea>
   let currentWord = "";
   let currentDefinition = "";
   let practiceCount = 0;
-  let revealedCount = 1;
+  let revealedIndices = new Set();
   let sentenceDone = false;
   let batchLogs = [];
   
@@ -362,10 +362,10 @@ volume = "a book forming part of a work or series"</textarea>
     startCurrentWord();
   }
 
-  function getMaskedString(word, count) {
+  function getMaskedString(word, revealedSet) {
     let result = [];
     for (let i = 0; i < word.length; i++) {
-      if (i < count) {
+      if (revealedSet.has(i)) {
         result.push(word[i]);
       } else {
         result.push('_');
@@ -375,7 +375,7 @@ volume = "a book forming part of a work or series"</textarea>
   }
 
   function updateMaskedDisplay() {
-    document.getElementById('maskedWord').innerText = getMaskedString(currentWord, revealedCount);
+    document.getElementById('maskedWord').innerText = getMaskedString(currentWord, revealedIndices);
   }
 
   function startCurrentWord() {
@@ -385,7 +385,12 @@ volume = "a book forming part of a work or series"</textarea>
     currentDefinition = currentBatch[currentIndex].definition;
     
     isFirstAttempt = true;
-    revealedCount = 1;
+    revealedIndices.clear();
+    // Initially reveal only the first letter by default
+    if (currentWord.length > 0) {
+      revealedIndices.add(0);
+    }
+    
     sentenceDone = false;
 
     const currentWordNum = batchOffset + currentIndex + 1;
@@ -504,11 +509,30 @@ volume = "a book forming part of a work or series"</textarea>
         saveToDailyReview(currentWord, currentDefinition);
         batchLogs.push({ word: currentWord, status: 'wrong' });
         isFirstAttempt = false;
+
+        // Reveal one third of the vocabulary letters in random positions
+        let totalCountToReveal = Math.max(1, Math.round(currentWord.length / 3));
+        let availableIndices = [];
+        for (let i = 0; i < currentWord.length; i++) {
+          if (!revealedIndices.has(i)) {
+            availableIndices.push(i);
+          }
+        }
+        
+        // Shuffle available indices randomly
+        for (let i = availableIndices.length - 1; i > 0; i--) {
+          let j = Math.floor(Math.random() * (i + 1));
+          [availableIndices[i], availableIndices[j]] = [availableIndices[j], availableIndices[i]];
+        }
+
+        // Pick up to the target count
+        for (let k = 0; k < Math.min(totalCountToReveal, availableIndices.length); k++) {
+          revealedIndices.add(availableIndices[k]);
+        }
+
+        updateMaskedDisplay();
       }
       
-      revealedCount = Math.min(currentWord.length, revealedCount + 2);
-      updateMaskedDisplay();
-
       practiceCount = 0;
       document.getElementById('repeatCounter').innerText = `Success: 0 / 3`;
       document.getElementById('practiceInput').value = "";
